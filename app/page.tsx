@@ -1,17 +1,23 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { gsap } from 'gsap';
 import { TextPlugin } from 'gsap/TextPlugin';
 
 gsap.registerPlugin(TextPlugin);
 
-const rawUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-const BACKEND_URL = rawUrl.replace(/\/$/, '');
-const socket = io(BACKEND_URL, {
-  transports: ['websocket', 'polling'],
-});
+// Pembersihan URL Backend agar aman dari double protocol & trailing slash
+const getCleanBackendUrl = () => {
+  const rawUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+  let clean = rawUrl.trim().replace(/\/$/, '');
+  if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+    clean = `https://${clean}`;
+  }
+  return clean;
+};
+
+const BACKEND_URL = getCleanBackendUrl();
 
 const STICKER_SAMPLES = [
   { id: 1, name: 'MAU_VIRAL_KAH.WEBP', src: '/images/stiker1.png', fallback: 'https://picsum.photos/seed/pepe/200' },
@@ -29,8 +35,9 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState<string>('home');
 
   const descRef = useRef<HTMLParagraphElement>(null);
+  const socketRef = useRef<Socket | null>(null);
 
-  // Animasi Typing chill menggunakan GSAP
+  // Animasi Typing menggunakan GSAP
   useEffect(() => {
     if (descRef.current) {
       const fullText =
@@ -48,6 +55,7 @@ export default function Home() {
   const fetchStatus = async () => {
     try {
       const res = await fetch(`${BACKEND_URL}/api/status`);
+      if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
       if (data.qr) {
         setQr(data.qr);
@@ -67,6 +75,19 @@ export default function Home() {
   useEffect(() => {
     fetchStatus();
 
+    // Inisialisasi Socket secara aman di dalam useEffect
+    socketRef.current = io(BACKEND_URL, {
+      transports: ['websocket', 'polling'],
+      secure: true,
+      reconnectionAttempts: 5,
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+    });
+
     socket.on('qr_status', (data) => {
       console.log('Received WebSocket qr_status:', data);
       if (data.qr) {
@@ -84,7 +105,10 @@ export default function Home() {
     });
 
     return () => {
-      socket.off('qr_status');
+      if (socket) {
+        socket.off('qr_status');
+        socket.disconnect();
+      }
     };
   }, []);
 
@@ -131,6 +155,7 @@ export default function Home() {
     setIsMobileMenuOpen(false);
     try {
       const res = await fetch(`${BACKEND_URL}/api/generate-qr`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed response from server');
       const data = await res.json();
       if (data.qr) {
         setQr(data.qr);
@@ -357,7 +382,6 @@ export default function Home() {
                 <h1 className="font-black text-3xl md:text-5xl uppercase tracking-tight leading-tight">
                   Turn Graphics into WhatsApp Stickers in Seconds.
                 </h1>
-                {/* deskripsi paragraf with animation */}
                 <p ref={descRef} className="text-gray-700 font-medium text-base md:text-lg leading-relaxed min-h-[56px]"></p>
 
                 <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -490,7 +514,6 @@ export default function Home() {
                 </div>
 
                 <div className="space-y-2.5 font-sans text-xs">
-                  {/* bubble chat user */}
                   <div className="flex items-start justify-end gap-1.5">
                     <div className="bg-[#DCF8C6] p-2 max-w-[75%] border-[2px] border-black rounded-lg shadow-[2px_2px_0px_#000] text-gray-800">
                       Bisa tolong ubah ini jadi stiker ya?
@@ -508,7 +531,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* gambar hasil send by user dummy */}
                   <div className="flex items-start justify-end gap-1.5">
                     <div className="bg-[#DCF8C6] p-1.5 border-[2px] border-black rounded-lg shadow-[2px_2px_0px_#000] max-w-[55%]">
                       <div className="border border-black overflow-hidden rounded bg-gray-100">
@@ -535,7 +557,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Bot Generating Status */}
                   <div className="flex items-start justify-start gap-1.5">
                     <div className="w-6 h-6 rounded-full border-[2px] border-black overflow-hidden shrink-0 bg-[#38BDF8] flex items-center justify-center">
                       <img
@@ -554,7 +575,6 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Hasil Stiker Bot */}
                   <div className="flex items-start justify-start gap-1.5">
                     <div className="w-6 h-6 rounded-full border-[2px] border-black overflow-hidden shrink-0 bg-[#38BDF8] flex items-center justify-center">
                       <img
