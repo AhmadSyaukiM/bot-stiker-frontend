@@ -7,13 +7,27 @@ import { TextPlugin } from 'gsap/TextPlugin';
 
 gsap.registerPlugin(TextPlugin);
 
-// Pembersihan URL Backend agar aman dari double protocol & trailing slash
+// Pembersihan URL Backend super aman dari markdown, double protocol, & trailing slash
 const getCleanBackendUrl = () => {
-  const rawUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
-  let clean = rawUrl.trim().replace(/\/$/, '');
+  let rawUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+
+  // Hapus karakter markdown seperti [, ], (, ), atau spasi
+  rawUrl = rawUrl.replace(/[\[\]\(\)]/g, '').trim();
+
+  // Ambil hanya pattern URL valid pertama jika ada teks berulang
+  const match = rawUrl.match(/https?:\/\/[^\s]+/);
+  if (match) {
+    rawUrl = match[0];
+  }
+
+  // Hapus trailing slash di akhir URL
+  let clean = rawUrl.replace(/\/$/, '');
+
+  // Pastikan memiliki protokol http/https
   if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
     clean = `https://${clean}`;
   }
+
   return clean;
 };
 
