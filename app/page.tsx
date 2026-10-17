@@ -71,14 +71,7 @@ export default function Home() {
       const res = await fetch(`${BACKEND_URL}/api/status`);
       if (!res.ok) throw new Error('Network response was not ok');
       const data = await res.json();
-      if (data.qr) {
-        setQr(data.qr);
-        setIsInitializing(false);
-      }
       setIsConnected(data.isConnected);
-      if (data.isInitializing !== undefined && !data.qr) {
-        setIsInitializing(data.isInitializing);
-      }
     } catch (err) {
       console.error('Error fetching status:', err);
     } finally {
@@ -87,6 +80,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    // Hanya mengecek status koneksi awal (online/offline) tanpa memicu QR otomatis
     fetchStatus();
 
     // Inisialisasi Socket secara aman di dalam useEffect
@@ -104,16 +98,15 @@ export default function Home() {
 
     socket.on('qr_status', (data) => {
       console.log('Received WebSocket qr_status:', data);
-      if (data.qr) {
+      
+      if (data.isConnected) {
+        setQr(null);
+        setIsConnected(true);
+        setIsInitializing(false);
+      } else if (data.qr && isInitializing) {
+        // QR Code hanya disimpan jika user memang sedang memilih/meminta QR
         setQr(data.qr);
         setIsInitializing(false);
-      } else if (data.isConnected) {
-        setQr(null);
-        setIsInitializing(false);
-      }
-      setIsConnected(data.isConnected);
-      if (data.isInitializing !== undefined && !data.qr) {
-        setIsInitializing(data.isInitializing);
       }
       setLoading(false);
     });
@@ -124,7 +117,7 @@ export default function Home() {
         socket.disconnect();
       }
     };
-  }, []);
+  }, [isInitializing]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
